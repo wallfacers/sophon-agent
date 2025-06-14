@@ -16,6 +16,7 @@ class OverallState(TypedDict):
     max_research_loops: int
     research_loop_count: int
     reasoning_model: str
+    locale: str
 
 
 class ReflectionState(TypedDict):
@@ -33,7 +34,7 @@ class Query(TypedDict):
 
 class QueryGenerationState(TypedDict):
     query_list: list[Query]
-
+    locale: str
 
 class WebSearchState(TypedDict):
     search_query: str

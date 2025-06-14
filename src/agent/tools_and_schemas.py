@@ -9,6 +9,9 @@ class SearchQueryList(BaseModel):
     rationale: str = Field(
         description="A brief explanation of why these queries are relevant to the research topic."
     )
+    locale: str = Field(
+        description="The user's detected language locale (e.g., en-US, zh-CN)."
+    )
 
 
 class Reflection(BaseModel):

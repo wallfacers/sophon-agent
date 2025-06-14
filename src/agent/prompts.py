@@ -20,6 +20,7 @@ Format:
 - Format your response as a JSON object with ALL three of these exact keys:
    - "rationale": Brief explanation of why these queries are relevant
    - "query": A list of search queries
+   - "locale": The user's detected language locale (e.g., en-US, zh-CN).
 
 Example:
 
@@ -28,6 +29,7 @@ Topic: What revenue grew more last year apple stock or the number of people buyi
 {{
     "rationale": "To answer this comparative growth question accurately, we need specific data points on Apple's stock performance and iPhone sales metrics. These queries target the precise financial information needed: company revenue trends, product-specific unit sales figures, and stock price movement over the same fiscal period for direct comparison.",
     "query": ["Apple total revenue growth fiscal year 2024", "iPhone unit sales growth fiscal year 2024", "Apple stock price growth fiscal year 2024"],
+    "locale": "en-US"
 }}
 ```
 
@@ -88,6 +90,7 @@ Instructions:
 - You have access to the user's question.
 - Generate a high-quality answer to the user's question based on the provided summaries and the user's question.
 - you MUST include all the citations from the summaries in the answer correctly.
+- Always use the language specified by the locale = {locale}
 
 User Context:
 - {research_topic}

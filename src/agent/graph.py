@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Annotated
 
 from dotenv import load_dotenv
 from langchain_community.tools import TavilySearchResults, DuckDuckGoSearchRun, ArxivQueryRun
@@ -141,7 +141,7 @@ def generate_query(state: OverallState, config: RunnableConfig) -> QueryGenerati
     )
     # Generate the search queries
     result = structured_llm.invoke(formatted_prompt)
-    return {"query_list": result.query}
+    return {"query_list": result.query, "locale": result.locale}
 
 
 def continue_to_web_research(state: QueryGenerationState):
@@ -324,6 +324,7 @@ def finalize_answer(state: OverallState):
         current_date=current_date,
         research_topic=get_research_topic(state["messages"]),
         summaries="\n---\n\n".join(state["web_research_result"]),
+        locale=state["locale"],
     )
 
     # init Reasoning Model, default to Gemini 2.5 Flash
@@ -376,7 +377,7 @@ if __name__ == "__main__":
 
     async def main():
         # 模拟用户输入的问题
-        user_question = "帮我研究特斯拉股票，并且给出投资建议，中文输出报告"
+        user_question = "Help me research Tesla stock and provide investment advice"
 
         # 构造初始状态
         initial_state = {
