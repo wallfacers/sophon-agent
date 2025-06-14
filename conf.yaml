@@ -1,0 +1,8 @@
+# [!NOTE]
+
+llms:
+    basic:
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      model: "qwen3-235b-a22b"
+      api_key: sk-ff234b35212e4b90bd748bb8f3bc295a
+      extra_body: {"enable_thinking": False}
