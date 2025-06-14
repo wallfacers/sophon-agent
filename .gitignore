@@ -144,4 +144,4 @@ cython_debug/
 # macOS
 .DS_Store
 
-.conf.yaml
+conf.yaml
