@@ -1,5 +1,5 @@
 import os
-from typing import List, Annotated
+from typing import List
 
 from dotenv import load_dotenv
 from langchain_community.tools import TavilySearchResults, DuckDuckGoSearchRun, ArxivQueryRun
@@ -54,7 +54,7 @@ def _search_with_tavily(query: str, config: Configuration) -> list[dict]:
         return []
 
 
-def _search_with_duckduckgo(query: str, config: Configuration) -> list[dict]:
+def _search_with_duckduckgo(query: str) -> list[dict]:
     """Perform search using DuckDuckGo."""
     try:
         ddg_search = DuckDuckGoSearchRun()
