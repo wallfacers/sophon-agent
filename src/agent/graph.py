@@ -375,13 +375,24 @@ if __name__ == "__main__":
     import uuid
 
 
+    def process_event_item(item):
+        """处理单个事件项（字典），提取节点名称和状态信息"""
+        for node_name, state in item.items():
+            print(f"📍 Node: {node_name}")
+            messages = state.get("messages")
+            if messages and isinstance(messages[-1], AIMessage):
+                content = messages[-1].content
+                print("🧠 AI Output:")
+                print(content)
+                print("-" * 60)
+
     async def main():
         # 模拟用户输入的问题
-        user_question = "Help me research Tesla stock and provide investment advice"
+        user_question = "帮我研究小米股票，并且给出投资建议"
 
         # 构造初始状态
         initial_state = {
-            "messages": [AIMessage(content=user_question)],  # 用户问题作为初始输入
+            "messages": [HumanMessage(content=user_question)],  # 用户问题作为初始输入
             "max_research_loops": 10,  # 可选：限制最大研究循环次数
         }
 
@@ -394,15 +405,16 @@ if __name__ == "__main__":
         print("🔍 Running research agent with streaming output...\n")
 
         try:
-            async for event in graph.astream(initial_state, config):
-                for node_name, state in event.items():
-                    print(f"📍 Node: {node_name}")
-                    messages = state.get("messages")
-                    if messages and isinstance(messages[-1], AIMessage):
-                        content = messages[-1].content
-                        print("🧠 AI Output:")
-                        print(content)
-                        print("-" * 60)
+            async for event in graph.astream(input=initial_state, config=config, stream_mode=["messages", "updates"]):
+                print(f"🚀 Event: {event}")
+
+                if isinstance(event, dict):
+                    process_event_item(event)
+                elif isinstance(event, list):
+                    for item in event:
+                        if isinstance(item, dict):
+                            process_event_item(item)
+
         except Exception as e:
             print(f"❌ Error during streaming: {e}")
 

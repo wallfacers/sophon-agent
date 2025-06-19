@@ -11,13 +11,13 @@ from langchain_openai import ChatOpenAI
 class ModelConfigLoader:
     """Configuration loader for sophon-agent."""
 
-    def __init__(self, config_path: str = "../../conf.yaml"):
+    def __init__(self):
         """Initialize the config loader.
 
         Args:
             config_path: Path to the configuration file
         """
-        self.config_path = config_path
+        self.config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../conf.yaml"))
         self._config: Optional[Dict[str, Any]] = None
         self._llm_cache: Dict[str, BaseLanguageModel] = {}
 
