@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessageChunk, ToolMessage, BaseMessage
+from langgraph.graph.state import CompiledStateGraph
 
 from agent import graph
 from src.server.chat_request import ChatRequest
@@ -95,6 +96,12 @@ async def _astream_workflow_generator(
             event_stream_message["tool_call_id"] = message_chunk.tool_call_id
             yield _make_event("tool_call_result", event_stream_message)
         elif isinstance(message_chunk, AIMessageChunk):
+            # AI Message - Finished
+            if message_chunk.response_metadata.get("finish_reason"):
+                event_stream_message["finish_reason"] = message_chunk.response_metadata.get(
+                    "finish_reason"
+                )
+
             # AI Message - Raw message tokens
             if message_chunk.tool_calls:
                 # AI Message - Tool Call
@@ -113,6 +120,71 @@ async def _astream_workflow_generator(
                 # AI Message - Raw message tokens
                 yield _make_event("message_chunk", event_stream_message)
 
+
+def graph_to_json():
+    """
+    Convert the LangGraph graph.get_graph() object into a JSON-serializable dictionary
+    """
+    raw_graph = graph.get_graph().__dict__
+
+    def _serialize_node(node):
+        return {"name": node, "type": "node"}
+
+    def _serialize_edge(edge):
+        """
+        Convert edge objects into structured JSON-serializable dictionaries.
+        Handles both simple edges (like ('source', 'target')) and conditional edges.
+        """
+
+        if isinstance(edge, tuple) and len(edge) == 2:
+            # Simple edge: ('source', 'target')
+            src, dst = edge
+            return {
+                "source": src,
+                "target": dst,
+                "type": "edge"
+            }
+        elif hasattr(edge, 'source') and hasattr(edge, 'target'):
+            # Generic edge with source/target attributes
+            return {
+                "source": edge.source,
+                "target": edge.target,
+                "type": "edge" if edge.conditional else "conditional_edge",
+                "condition": str(edge.conditional)
+            }
+        else:
+            # Fallback: try to extract __dict__ or return placeholder
+            try:
+                return edge.__dict__
+            except AttributeError as e:
+                logger.warning(f"Failed to serialize edge due to missing attribute: {e}")
+                return {"type": "unknown_edge", "raw": str(edge)}
+            except TypeError as e:
+                logger.warning(f"Type error during edge serialization: {e}")
+                return {"type": "unknown_edge", "raw": str(edge)}
+            except Exception as e:
+                logger.error(f"Unexpected error during edge serialization: {e}", exc_info=True)
+                return {"type": "unknown_edge", "raw": str(edge)}
+
+    nodes = [n for n in raw_graph.get("nodes", [])]
+    edges = [e for e in raw_graph.get("edges", [])]
+
+    result = {
+        "entry_point": raw_graph.get("entry_point"),
+        "end_points": list(raw_graph.get("end_points", [])),
+        "nodes": [_serialize_node(n) for n in nodes],
+        "edges": [_serialize_edge(e) for e in edges]
+    }
+
+    return result
+
+@app.get("/api/graph")
+async def get_graph_structure():
+    """
+    Return the JSON representation of the LangGraph structure
+    """
+
+    return graph_to_json()
 
 def _make_event(event_type: str, data: dict[str, any]):
     if data.get("content") == "":
