@@ -10,7 +10,7 @@ import { updateMessageWithStreamEvent } from '@/utils/messageProcessor';
 import { useChatContext } from '@/components/contexts/ChatContext';
 
 interface ChatInterfaceProps {
-  setSelectedNode?: (message: SelectedNode) => void; // 新增：节点消息选择回调
+  setSelectedNode?: (message: SelectedNode) => void;
 }
 
 export default function ChatInterface({ setSelectedNode }: ChatInterfaceProps) {
@@ -18,10 +18,14 @@ export default function ChatInterface({ setSelectedNode }: ChatInterfaceProps) {
   const { messages, addMessage, updateMessage} = useChatContext();
 
   const [input, setInput] = useState('');
+  const [currentThreadId, setCurrentThreadId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const workflowGraphCache = useMemo(() => {
     const cache = new Map<string, JSX.Element>();
@@ -55,9 +59,36 @@ export default function ChatInterface({ setSelectedNode }: ChatInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // 检查用户是否接近底部
+  const checkIfNearBottom = () => {
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const threshold = 100; // 距离底部100px内认为是接近底部
+      return scrollHeight - scrollTop - clientHeight < threshold;
+    }
+    return true;
+  };
+
+  // 处理滚动事件
+  const handleScroll = () => {
+    setShouldAutoScroll(checkIfNearBottom());
+  };
+
   useEffect(() => {
-    scrollToBottom();
+    // 只有在用户接近底部时才自动滚动
+    if (shouldAutoScroll && checkIfNearBottom()) {
+      setTimeout(() => {
+        scrollToBottom();
+      }, 50);
+    }
   }, [messages]);
+
+  useEffect(() => {
+    // 只有在应该自动滚动时才滚动到底部
+    if (shouldAutoScroll) {
+      scrollToBottom();
+    }
+  }, [shouldAutoScroll]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -86,6 +117,9 @@ export default function ChatInterface({ setSelectedNode }: ChatInterfaceProps) {
     if (!input.trim() && selectedFiles.length === 0) return;
 
     const threadId = crypto.randomUUID();
+    setCurrentThreadId(threadId)
+    const controller = new AbortController();
+    setAbortController(controller);
     
     const newMessage: ChatMessage = {
       id: threadId,
@@ -109,6 +143,7 @@ export default function ChatInterface({ setSelectedNode }: ChatInterfaceProps) {
           content: input,
         }],
         thread_id: threadId,
+        max_research_loops: 5,
         search_engines: ['tavily'],
       };
 
@@ -118,6 +153,7 @@ export default function ChatInterface({ setSelectedNode }: ChatInterfaceProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(chatRequest),
+        signal: controller.signal,
       });
       
       if (!response.body) {
@@ -166,9 +202,27 @@ export default function ChatInterface({ setSelectedNode }: ChatInterfaceProps) {
         }
       }      
     } catch (error) {
-      console.error('Error sending message:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Request was aborted by user');
+      } else {
+        console.error('Error sending message:', error);
+      }
     } finally {
       setIsLoading(false);
+      setAbortController(null); // 确保清理 abortController
+    }
+  };
+
+  // 添加停止函数
+  const stopGeneration = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setIsLoading(false);
+      updateMessage(currentThreadId, (prev) => ({
+        ...prev,
+        currentAgent: ''
+      }));
     }
   };
 
@@ -182,7 +236,11 @@ export default function ChatInterface({ setSelectedNode }: ChatInterfaceProps) {
   return (
     <div className="flex flex-col h-screen pt-1">
       {/* Messages Area - 自动占据剩余空间 */}
-      <div className="flex-1 overflow-y-auto minimal-scrollbar">
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto minimal-scrollbar"
+        onScroll={handleScroll}
+      >
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
@@ -342,13 +400,19 @@ export default function ChatInterface({ setSelectedNode }: ChatInterfaceProps) {
           
           {/* Send Button */}
           <Button
-            onClick={sendMessage}
-            disabled={isLoading || (!input.trim() && selectedFiles.length === 0)}
-            className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-black hover:bg-gray-800 disabled:bg-gray-300 focus:ring-0 focus:outline-none"
+            onClick={isLoading ? stopGeneration : sendMessage}
+            disabled={!isLoading && (!input.trim() && selectedFiles.length === 0)}
+            className={`absolute bottom-3 right-3 h-8 w-8 rounded-full focus:ring-0 focus:outline-none ${
+              isLoading 
+                ? 'bg-red-500 hover:bg-red-600' 
+                : 'bg-black hover:bg-gray-800 disabled:bg-gray-300'
+            }`}
             size="icon"
           >
             {isLoading ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              <div className="w-4 h-4 flex items-center justify-center">
+                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              </div>
             ) : (
               <ArrowUp className="w-4 h-4 text-white" />
             )}

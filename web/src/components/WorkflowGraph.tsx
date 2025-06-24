@@ -41,7 +41,7 @@ const getNodePosition = (nodeName: string) => {
   const positions: { [key: string]: { x: number; y: number } } = {
     '__start__': { x: 109, y: 50 },
     'generate_query': { x: 100, y: 150 },
-    'web_research': { x: 96, y: 250 },
+    'web_research': { x: 107, y: 250 },
     'reflection': { x: 350, y: 250 },
     'finalize_answer': { x: 344, y: 350 },
     '__end__': { x: 350, y: 450 }

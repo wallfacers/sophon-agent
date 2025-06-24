@@ -1,7 +1,7 @@
 'use client';
 
 import { X, User, Bot} from 'lucide-react';
-import { useEffect, useRef} from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo} from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription} from '@/components/ui/card';
 import { SelectedNode } from '@/types/chat';
@@ -14,13 +14,57 @@ interface DetailPanelProps {
   onClose: () => void;
 }
 
+// 在文件顶部添加安全的JSON渲染函数
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const SafeJsonRenderer = ({ content }: { content: any }) => {
+  const renderJsonContent = () => {
+    try {
+      // 如果content已经是字符串，尝试解析它
+      if (typeof content === 'string') {
+        try {
+          const parsed = JSON.parse(content);
+          return JSON.stringify(parsed, null, 2);
+        } catch {
+          // 如果解析失败，直接返回原字符串
+          return content;
+        }
+      }
+      // 如果content不是字符串，直接格式化
+      return JSON.stringify(content, null, 2);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      return content;
+    }
+  };
+
+  return (
+    <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto text-sm font-mono whitespace-pre-wrap">
+      {renderJsonContent()}
+    </pre>
+  );
+};
+
 export default function DetailPanel({ selectedNode, onClose}: DetailPanelProps) {
   const { getMessageById} = useChatContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
   // 将 useEffect 移到这里，在所有条件检查之前
   const message = selectedNode ? getMessageById(selectedNode.id) : null;
+
+  // 检查用户是否接近底部
+  const checkIfNearBottom = useCallback(() => {
+    if (!scrollContainerRef.current) return false;
+    const container = scrollContainerRef.current;
+    const threshold = 100; // 距离底部100px内认为是接近底部
+    return container.scrollTop + container.clientHeight >= container.scrollHeight - threshold;
+  }, []);
   
+  // 自动滚动到底部的函数
+  const handleScroll = useCallback(() => {
+    setShouldAutoScroll(checkIfNearBottom());
+  }, [checkIfNearBottom]);
+
   // 自动滚动到底部的函数
   const scrollToBottom = () => {
     if (scrollContainerRef.current) {
@@ -29,10 +73,44 @@ export default function DetailPanel({ selectedNode, onClose}: DetailPanelProps) 
     }
   };
 
+  // 当选中的节点改变时，重置自动滚动状态
   useEffect(() => {
-    // 你的 effect 逻辑
+    setShouldAutoScroll(true);
     scrollToBottom();
-  }, [selectedNode?.nodeName, message?.assistantMessage]);
+  }, [selectedNode?.id]);
+
+  // 计算当前agent的消息内容
+  const currentAgentMessages = useMemo(() => {
+    if (!message?.assistantMessage || !selectedNode?.nodeName) return [];
+    return message.assistantMessage
+      .filter(msg => msg.agent === selectedNode.nodeName)
+      .flatMap(msg => msg.messageItem);
+  }, [message?.assistantMessage, selectedNode?.nodeName]);
+
+  useEffect(() => {
+    // 只有在用户接近底部时才自动滚动
+    if (shouldAutoScroll && checkIfNearBottom()) {
+      setTimeout(() => {
+        scrollToBottom();
+      }, 50);
+    }
+  }, [currentAgentMessages]); 
+
+  // 只有在应该自动滚动时才滚动到底部
+  useEffect(() => {
+    if (shouldAutoScroll) {
+      scrollToBottom();
+    }
+  }, [shouldAutoScroll]);
+
+  // 添加滚动事件监听器
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [handleScroll]);
 
   // 条件检查放在 Hooks 之后
   if (!selectedNode) {
@@ -91,7 +169,7 @@ export default function DetailPanel({ selectedNode, onClose}: DetailPanelProps) 
               <div className="border-l-2 border-blue-200 pl-4">
                 <div className="max-w-none prose-blue">
                   {typeof message.userMessage.content === 'string' ? (
-                    <Markdown className="mb-3 last:mb-0 leading-relaxed">
+                    <Markdown className="mb-3 last:mb-0 leading-relaxed max-w-none">
                       {message.userMessage.content}
                     </Markdown>
                   ) : (
@@ -111,7 +189,7 @@ export default function DetailPanel({ selectedNode, onClose}: DetailPanelProps) 
             <CardHeader>
               <CardTitle className="text-base flex items-center space-x-2">
                 <Bot className="w-4 h-4" />
-                <span>Agent: {currentAgent}</span>
+                <span>节点: {currentAgent}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -125,14 +203,12 @@ export default function DetailPanel({ selectedNode, onClose}: DetailPanelProps) 
                             项目 {itemIndex + 1} (ID: {messageItem.id})
                           </div>
                           <div className="max-w-none prose-gray">
-                            {typeof messageItem.content === 'string' ? (
-                              <Markdown className="mb-3 last:mb-0 leading-relaxed">
+                            {typeof messageItem.content === 'string' && (assistantMsg.agent !== 'generate_query' && assistantMsg.agent !== 'reflection') ? (
+                              <Markdown className="mb-3 last:mb-0 leading-relaxed max-w-none">
                                 {messageItem.content}
                               </Markdown>
                             ) : (
-                              <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto text-sm font-mono">
-                                {JSON.stringify(messageItem.content, null, 2)}
-                              </pre>
+                              <SafeJsonRenderer content={messageItem.content} />
                             )}
                           </div>
                         </div>

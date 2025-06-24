@@ -21,7 +21,7 @@ class Configuration(BaseModel):
     )
 
     max_research_loops: int = Field(
-        default=2,
+        default=5,
         metadata={"description": "The maximum number of research loops to perform."},
     )
 

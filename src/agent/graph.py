@@ -289,7 +289,7 @@ def evaluate_research(
         if state.get("max_research_loops") is not None
         else configurable.max_research_loops
     )
-    if state["is_sufficient"] or state["research_loop_count"] >= max_research_loops:
+    if state["is_sufficient"] or state["research_loop_count"] > max_research_loops:
         return "finalize_answer"
     else:
         return [
